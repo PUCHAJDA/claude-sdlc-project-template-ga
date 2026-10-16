@@ -1,4 +1,4 @@
-# claude-sdlc-project-template-ga
+# claude-sdlc-project-template (github actions)
 
 Szablon startowy projektu prowadzonego zgodnie z **AI-native SDLC**
 ([playbook Anthropic](https://claude.com/resources/articles/the-ai-native-sdlc-playbook)).
