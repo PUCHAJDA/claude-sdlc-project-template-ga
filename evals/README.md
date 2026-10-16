@@ -25,8 +25,11 @@ Dwa źródła zadań, oba lepsze niż wyobraźnia:
 Wymaga Claude Code w trybie nieinteraktywnym (`claude -p`) i czystego drzewa roboczego —
 skrypt odmówi startu na niezacommitowanych zmianach, bo każde zadanie pracuje na kopii.
 
-W CI: `.github/workflows/claude-evals.yml`, odpalane przy zmianie `CLAUDE.md` lub
-`.claude/**` oraz nocnie.
+W CI: `.github/workflows/claude-evals.yml`, odpalane przy zmianie `CLAUDE.md`, `.claude/**`,
+`Makefile` lub `evals/**` oraz nocnie. Dopóki `Makefile` zawiera zaślepki, job **pomija się
+i kończy na zielono** — świeży szablon nie ma czego ewaluować, a stale czerwone CI uczy
+zespół ignorować czerwone. Uzupełnienie `make install` / `make test` włącza evale samo,
+bez dotykania workflow.
 
 ## Format zadania
 

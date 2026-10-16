@@ -4,6 +4,10 @@
 # behaves just as surely as editing src/. Without this, a trimmed CLAUDE.md degrades output
 # for weeks before anyone connects the two.
 #
+# Until the Makefile is wired up, this job skips itself instead of failing. A fresh template
+# that arrives with a red badge teaches the team to ignore red — which is precisely what an
+# eval suite exists to prevent. It starts enforcing on its own the moment the stubs are gone.
+#
 # Setup: add ANTHROPIC_API_KEY to repository secrets.
 name: Claude evals
 
@@ -13,11 +17,13 @@ on:
       - 'CLAUDE.md'
       - '.claude/**'
       - 'evals/**'
+      - 'Makefile'
   pull_request:
     paths:
       - 'CLAUDE.md'
       - '.claude/**'
       - 'evals/**'
+      - 'Makefile'
   schedule:
     - cron: '0 3 * * *' # nightly — catches drift from model and dependency updates
   workflow_dispatch:
@@ -34,14 +40,33 @@ jobs:
         with:
           fetch-depth: 0 # run-evals.sh gives each task its own worktree
 
+      - name: Is the project wired up yet?
+        id: wiring
+        run: |
+          if [ ! -f Makefile ] || grep -q 'TODO: wire up' Makefile; then
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            {
+              echo '### Evals skipped'
+              echo
+              echo 'The Makefile still has stub targets, so there is no project to run evals'
+              echo 'against. Wire up `make install`, `make test` and `make lint`, and this job'
+              echo 'starts enforcing the suite by itself — no change needed here.'
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Install Claude Code
+        if: steps.wiring.outputs.ready == 'true'
         run: npm install -g @anthropic-ai/claude-code
 
       - name: Set up project
+        if: steps.wiring.outputs.ready == 'true'
         run: make install
 
       - name: Run evals
         id: evals
+        if: steps.wiring.outputs.ready == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
@@ -49,12 +74,17 @@ jobs:
           ./evals/run-evals.sh 2>&1 | tee eval-output.txt
 
       - name: Report on PR
-        if: always() && github.event_name == 'pull_request'
+        if: |
+          always() &&
+          steps.wiring.outputs.ready == 'true' &&
+          github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const out = fs.readFileSync('eval-output.txt', 'utf8').slice(-60000);
+            const out = fs.existsSync('eval-output.txt')
+              ? fs.readFileSync('eval-output.txt', 'utf8').slice(-60000)
+              : '(the eval run produced no output — check the job log)';
             const ok = '${{ steps.evals.outcome }}' === 'success';
             github.rest.issues.createComment({
               issue_number: context.issue.number,
