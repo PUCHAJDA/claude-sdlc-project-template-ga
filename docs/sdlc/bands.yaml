@@ -1,0 +1,62 @@
+# STAGE 6 — Maintain. How much autonomy a production signal buys.
+#
+# Detection is deterministic: a script compares each metric against a rolling baseline
+# using Western Electric rules. Claude is invoked to INTERPRET a crossing, never to decide
+# whether one happened. Keeping that boundary is what makes the escalation auditable.
+#
+# This file is version-controlled on purpose: widening a band is a reviewable change.
+# It is also a protected path (.claude/hooks/protect-paths.sh), so an agent cannot widen
+# its own leash mid-incident.
+
+baseline:
+  window: 14d # rolling comparison window
+  min_samples: 30 # below this, log only — the baseline is not trustworthy yet
+
+bands:
+  - sigma: 1
+    action: log
+    autonomy: none
+    description: >
+      Record and move on. Normal variation produces 1σ crossings constantly; paging on
+      them trains people to ignore the channel.
+
+  - sigma: 2
+    action: diagnose
+    autonomy: read-only
+    tools: [Read, Grep, Glob, Bash(git log:*), Bash(git diff:*)]
+    description: >
+      Claude correlates the signal window against recent merges, config changes and
+      deploys, then reports ranked causes. No edits, no PR, no remediation.
+
+  - sigma: 3
+    action: remediate
+    autonomy: propose-only
+    allowed:
+      - open_pr # e.g. quarantine a flaky test, revert a suspect merge
+      - runbook # only those listed below
+    requires_human: true
+    description: >
+      Claude may open a PR or invoke a pre-approved runbook. A human still merges and still
+      authorizes anything touching production — see .claude/hooks/release-gate.sh.
+
+# Pre-approved runbooks. Anything not listed here needs a human to write the steps.
+runbooks:
+  - name: rollback-last-deploy
+    trigger: 5xx rate 3σ above baseline within 30m of a deploy
+    command: make rollback
+    rehearsed_in_staging: true # a runbook never rehearsed is a plan, not a runbook
+
+  - name: quarantine-flaky-test
+    trigger: single test fails intermittently >3 times in 24h with no related merge
+    command: make quarantine TEST=<id>
+    rehearsed_in_staging: true
+
+# Metrics watched. Add the ones this project actually lives or dies by — a long list
+# nobody reads is worse than three that page correctly.
+metrics:
+  - name: ci_failure_rate
+    source: <ci api / query>
+  - name: error_rate_5xx
+    source: <observability query>
+  - name: p95_latency
+    source: <observability query>

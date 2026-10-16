@@ -1,0 +1,23 @@
+# Secrets — also denied in .claude/settings.json so the agent cannot read them
+.env
+.env.*
+!.env.example
+secrets/
+*.pem
+id_rsa*
+
+# Claude Code local state
+.claude/settings.local.json
+.claude/.tdd-lock
+
+# Eval scratch
+eval-output.txt
+
+# Build output / deps — extend for this project's stack
+node_modules/
+dist/
+build/
+__pycache__/
+*.pyc
+.venv/
+target/

@@ -1,0 +1,13 @@
+# Shell scripts must stay LF even when checked out on Windows.
+# A CRLF line ending turns the shebang into "#!/usr/bin/env bash\r", and the kernel looks
+# for an interpreter literally named "bash\r". The hooks then fail to run — silently, on
+# Linux and in CI, which is exactly where the guardrails matter most.
+*.sh text eol=lf
+Makefile text eol=lf
+
+# PowerShell 5.1 reads .ps1 as ANSI unless there is a BOM, so keep these ASCII-only
+# and CRLF.
+*.ps1 text eol=crlf
+
+# Everything else: normalise to LF in the repo, let git decide on checkout.
+* text=auto

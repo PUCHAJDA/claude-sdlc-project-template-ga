@@ -1,0 +1,52 @@
+# STAGE 5 — Deploy. Layered review: the agent goes first, the human approves.
+#
+# This does NOT replace human approval. Branch protection still requires it. What it
+# changes is what the human reads: a diff that has already had its mechanical defects
+# found, so attention goes to judgement calls.
+#
+# Setup: add ANTHROPIC_API_KEY to repository secrets.
+name: Claude review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review]
+  issue_comment:
+    types: [created]
+  pull_request_review_comment:
+    types: [created]
+
+jobs:
+  review:
+    # Review new pushes, and respond when someone writes @claude in a PR comment.
+    if: |
+      github.event_name == 'pull_request' ||
+      contains(github.event.comment.body, '@claude')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # review needs the merge base, not just the tip
+
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request against REVIEW.md. Run every pass it defines, in order.
+
+            Judge the diff against docs/sdlc/spec.md and docs/sdlc/plan.md — not against
+            what you would have built. Anything the diff does that plan.md does not
+            describe is a finding, however sensible it looks.
+
+            Post Important findings as inline comments. Cap nits at three, in a single
+            summary comment. For each finding give file:line, the defect in one sentence,
+            and a concrete failure scenario. If you cannot name the scenario, drop it.
+
+            Do not approve and do not request changes — a human does that. Do not comment
+            on anything `make lint` already enforces.
+          claude_args: --allowed-tools "Read,Glob,Grep,Bash(git diff:*),Bash(git log:*)"
